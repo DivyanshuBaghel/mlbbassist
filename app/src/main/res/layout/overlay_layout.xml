@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content">
+
+    <!-- Collapsed View (Floating Button) -->
+    <ImageView
+        android:id="@+id/btnFloating"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:src="@mipmap/ic_launcher_round"
+        android:background="@drawable/bg_floating_button"
+        android:contentDescription="Analyze"
+        android:elevation="10dp"
+        android:padding="0dp" />
+
+    <!-- Expanded View (Results) -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/layoutExpanded"
+        android:layout_width="320dp"
+        android:layout_height="400dp"
+        android:visibility="gone"
+        app:cardBackgroundColor="@color/overlay_background"
+        app:cardCornerRadius="16dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="@color/overlay_border"
+        android:elevation="10dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Header (Draggable) -->
+            <LinearLayout
+                android:id="@+id/layoutHeader"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingBottom="8dp"
+                android:clickable="true"
+                android:focusable="true">
+                
+                <TextView
+                    android:id="@+id/tvStatusOverlay"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Results"
+                    android:textStyle="bold"
+                    android:textSize="16sp"
+                    android:textColor="@color/colorPrimary" />
+
+                <ImageView
+                    android:id="@+id/btnClose"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    app:tint="@color/overlay_text_secondary"
+                    android:background="?attr/selectableItemBackgroundBorderless" 
+                    android:clickable="true"/>
+            </LinearLayout>
+
+            <!-- Divider -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/overlay_border"
+                android:layout_marginBottom="5dp"/>
+
+            <androidx.core.widget.NestedScrollView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <Button
+                        android:id="@+id/btnAnalyze"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="ANALYZE SCREEN"
+                        android:background="@drawable/bg_action_button"
+                        app:backgroundTint="@null"
+                        android:textColor="#FFFFFF"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="12dp"/>
+
+                    <ProgressBar
+                        android:id="@+id/progressBar"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:indeterminate="true"
+                        android:visibility="gone"
+                        android:layout_marginBottom="8dp"/>
+
+                    <TextView
+                        android:id="@+id/tvHeroInfo"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Hero: - | KDA: -/-/-"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/colorPrimary"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:id="@+id/layoutThreats"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="TOP THREATS"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:textColor="#FF5252"
+                            android:layout_marginTop="4dp"/>
+
+                        <TextView
+                            android:id="@+id/tvThreats"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="-"
+                            android:textSize="14sp"
+                            android:textColor="@color/overlay_text_primary"
+                            android:layout_marginBottom="12dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/layoutBuild"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:background="@drawable/bg_build_box"
+                        android:padding="8dp"
+                        android:layout_marginBottom="12dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="RECOMMENDED BUILD"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/colorPrimary"
+                            android:layout_marginBottom="4dp"/>
+
+                        <TextView
+                            android:id="@+id/tvBuildItems"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="-"
+                            android:textStyle="bold"
+                            android:textColor="@color/overlay_text_primary"
+                            android:layout_marginBottom="4dp"/>
+
+                        <TextView
+                            android:id="@+id/tvBuildReason"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="-"
+                            android:textSize="12sp"
+                            android:textColor="@color/overlay_text_secondary"
+                            android:lineSpacingExtra="2dp"/>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/layoutStrategy"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:background="@drawable/bg_build_box"
+                        android:padding="8dp"
+                        android:layout_marginBottom="12dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="STRATEGY"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/colorPrimary"
+                            android:layout_marginBottom="4dp"/>
+
+                        <TextView
+                            android:id="@+id/tvStrategy"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Strategy will appear here..."
+                            android:textColor="@color/overlay_text_primary"
+                            android:textSize="12sp"
+                            android:lineSpacingExtra="4dp"/>
+                    </LinearLayout>
+                </LinearLayout>
+            </androidx.core.widget.NestedScrollView>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+</FrameLayout>
