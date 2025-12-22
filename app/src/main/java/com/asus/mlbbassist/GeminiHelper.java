@@ -13,13 +13,15 @@ import com.google.common.util.concurrent.ListenableFuture;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.io.ByteArrayOutputStream;
+import android.util.Base64;
 
 public class GeminiHelper {
     private final KeyManager keyManager;
     private final Executor executor = Executors.newSingleThreadExecutor();
 
     public interface Callback {
-        void onSuccess(String result);
+        void onSuccess(String result, long duration);
 
         void onError(String error, boolean isRateLimit);
     }
@@ -29,7 +31,8 @@ public class GeminiHelper {
     }
 
     public void analyzeImage(Bitmap bitmap, Callback callback) {
-        performAnalysis(bitmap, callback, 0);
+        long startTime = System.currentTimeMillis();
+        performAnalysis(bitmap, callback, 0, startTime);
     }
 
     public void validateKey(Callback callback) {
@@ -53,7 +56,7 @@ public class GeminiHelper {
         Futures.addCallback(response, new FutureCallback<GenerateContentResponse>() {
             @Override
             public void onSuccess(GenerateContentResponse result) {
-                callback.onSuccess("Connection Successful");
+                callback.onSuccess("Connection Successful", 0);
             }
 
             @Override
@@ -63,7 +66,7 @@ public class GeminiHelper {
         }, executor);
     }
 
-    private void performAnalysis(Bitmap bitmap, Callback callback, int retryCount) {
+    private void performAnalysis(Bitmap bitmap, Callback callback, int retryCount, long startTime) {
         String key = keyManager.getActiveKey();
         String modelName = keyManager.getModel();
 
@@ -71,7 +74,7 @@ public class GeminiHelper {
         if (key.isEmpty()) {
             keyManager.rotateKey();
             if (retryCount < 3) {
-                performAnalysis(bitmap, callback, retryCount + 1);
+                performAnalysis(bitmap, callback, retryCount + 1, startTime);
             } else {
                 callback.onError("No valid API keys found.", false);
             }
@@ -93,12 +96,16 @@ public class GeminiHelper {
                 "2. Analyze the enemy team composition and economy.\n" +
                 "3. Suggest 2 crucial counter-items and briefly explain why.\n" +
                 "Output strictly in json format:\n" +
-                "{\"player_status\": {\"hero_name\": \"string\", \"kda\": \"string\"}, \"top_threats\": [\"Enemy Hero 1\", \"Enemy Hero 2\"], \"recommended_build\": {\"items\": [\"Item 1\", \"Item 2\"], \"reasoning\": \"string\"}, \"teamfight_strategy\": \"string\"}";
+                "{\"player_status\": {\"hero_name\": \"string\", \"kda\": \"string\"}, \"top_threats\": [\"Enemy Hero 1\", \"Enemy Hero 2\"], \"recommended_build\":\"{\"counter_items\": [\"Item 1\", \"Item 2\"], \"damage_items\": \"Item\", \"reasoning\": \"Explain why these 3 items work together.\"}, \"teamfight_strategy\": \"string\"}";
 
-        Content content = new Content.Builder()
-                .addImage(bitmap)
-                .addText(prompt)
-                .build();
+        Content.Builder contentBuilder = new Content.Builder()
+                .addText(prompt);
+
+        // Use standard SDK method. Warning: SDK may compress to JPEG.
+        // We rely on the input bitmap being high-quality (Smart Cropped).
+        contentBuilder.addImage(bitmap);
+
+        Content content = contentBuilder.build();
 
         ListenableFuture<GenerateContentResponse> response = model.generateContent(content);
 
@@ -106,8 +113,10 @@ public class GeminiHelper {
             @Override
             public void onSuccess(GenerateContentResponse result) {
                 String responseText = result.getText();
+                long duration = System.currentTimeMillis() - startTime;
+                Log.i("GeminiProfile", "Analysis took " + duration + "ms");
                 Log.d("GeminiHelper", "API Response: " + responseText);
-                callback.onSuccess(responseText);
+                callback.onSuccess(responseText, duration);
             }
 
             @Override
@@ -119,7 +128,7 @@ public class GeminiHelper {
                     keyManager.rotateKey();
                     if (retryCount < 3) {
                         // Retry with new key
-                        performAnalysis(bitmap, callback, retryCount + 1);
+                        performAnalysis(bitmap, callback, retryCount + 1, startTime);
                     } else {
                         callback.onError("All keys exhausted or rate limited.", true);
                     }
@@ -128,5 +137,11 @@ public class GeminiHelper {
                 }
             }
         }, executor);
+    }
+
+    private byte[] bitmapToBytes(Bitmap bitmap) {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
+        return stream.toByteArray();
     }
 }

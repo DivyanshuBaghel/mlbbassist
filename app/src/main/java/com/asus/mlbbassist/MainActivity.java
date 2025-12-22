@@ -152,7 +152,7 @@ public class MainActivity extends AppCompatActivity {
         GeminiHelper helper = new GeminiHelper(keyManager);
         helper.validateKey(new GeminiHelper.Callback() {
             @Override
-            public void onSuccess(String result) {
+            public void onSuccess(String result, long duration) {
                 runOnUiThread(() -> {
                     tvStatus.setText(result);
                     Toast.makeText(MainActivity.this, result, Toast.LENGTH_SHORT).show();

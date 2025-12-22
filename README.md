@@ -8,6 +8,8 @@
 *   **Threat Detection**: Identifies the most dangerous enemies (fed heroes, high KDA).
 *   **Strategic Advice**: Provides tailored teamfight tactics based on your specific match state.
 *   **Overlay Interface**: Unobtrusive floating button that expands only when you need it.
+*   **Smart Overlay Hiding**: Automatically hides the overlay when analyzing the screen to ensure a clean capture.
+*   **Manual Key Selection**: Choose which API key to use or let the app rotate them automatically.
 
 ---
 

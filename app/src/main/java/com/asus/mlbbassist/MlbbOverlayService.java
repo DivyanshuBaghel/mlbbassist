@@ -166,7 +166,8 @@ public class MlbbOverlayService extends Service {
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                         : WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT);
 
         params.gravity = Gravity.TOP | Gravity.START;
         params.x = 0;
@@ -292,6 +293,12 @@ public class MlbbOverlayService extends Service {
     }
 
     private void processImage(Image image) {
+        // Restore visibility immediately
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (overlayView != null)
+                overlayView.setVisibility(View.VISIBLE);
+        });
+
         try {
             Image.Plane[] planes = image.getPlanes();
             ByteBuffer buffer = planes[0].getBuffer();
@@ -308,7 +315,21 @@ public class MlbbOverlayService extends Service {
             // Do not close imageReader/virtualDisplay here (persistent)
             // cleanupCapture();
 
-            Bitmap cleanBitmap = Bitmap.createBitmap(bitmap, 0, 0, screenWidth, screenHeight);
+            // Smart Cropping: Keep center 80% width (cut 10% sides)
+            // Vertical: Keep Top 90% (cut 10% from BOTTOM only)
+            int marginX = (int) (screenWidth * 0.10f);
+            int marginBottom = (int) (screenHeight * 0.10f);
+
+            int startX = marginX;
+            int startY = 0; // Top is kept
+            int cropWidth = screenWidth - (marginX * 2);
+            int cropHeight = screenHeight - marginBottom;
+
+            Bitmap cleanBitmap = Bitmap.createBitmap(bitmap, startX, startY, cropWidth, cropHeight);
+
+            // Debug: Save image to verify
+            saveDebugBitmap(cleanBitmap);
+
             new Handler(Looper.getMainLooper()).post(() -> analyzeWithGemini(cleanBitmap));
 
         } catch (Exception e) {
@@ -317,6 +338,8 @@ public class MlbbOverlayService extends Service {
                 image.close();
             // cleanupCapture();
             new Handler(Looper.getMainLooper()).post(() -> {
+                if (overlayView != null)
+                    overlayView.setVisibility(View.VISIBLE); // Ensure visible on error
                 tvStatusOverlay.setText("Error");
                 tvHeroInfo.setText("Image processing failed.");
                 tvStrategy.setText("-");
@@ -326,20 +349,26 @@ public class MlbbOverlayService extends Service {
         }
     }
 
+    private void saveDebugBitmap(Bitmap bitmap) {
+        try {
+            java.io.File file = new java.io.File(getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES),
+                    "gemini_debug.png");
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(file);
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+            fos.close();
+            android.util.Log.i("GeminiDebug", "Saved debug image to: " + file.getAbsolutePath());
+            new Handler(Looper.getMainLooper())
+                    .post(() -> Toast.makeText(this, "Debug saved: " + file.getName(), Toast.LENGTH_SHORT).show());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private void startAnalysis() {
         if (mediaProjection == null || virtualDisplay == null) {
             tvStatusOverlay.setText("Error");
             tvHeroInfo.setText("Screen capture service not ready. Restart app.");
             return;
-        }
-
-        // Check for orientation change
-        DisplayMetrics metrics = getResources().getDisplayMetrics();
-        if (metrics.widthPixels != screenWidth || metrics.heightPixels != screenHeight) {
-            screenWidth = metrics.widthPixels;
-            screenHeight = metrics.heightPixels;
-            screenDensity = metrics.densityDpi;
-            createVirtualDisplay();
         }
 
         tvStatusOverlay.setText("Capturing...");
@@ -352,18 +381,28 @@ public class MlbbOverlayService extends Service {
         progressBar.setVisibility(View.VISIBLE);
         btnAnalyze.setEnabled(false);
 
-        isCaptureRequested = true;
+        // Hide overlay for capture
+        overlayView.setVisibility(View.GONE);
 
-        // Timeout to reset flag if capture fails
+        // Delay capture to allow UI to update
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            if (isCaptureRequested) {
-                isCaptureRequested = false;
-                tvStatusOverlay.setText("Error");
-                tvHeroInfo.setText("Capture timed out.");
-                progressBar.setVisibility(View.GONE);
-                btnAnalyze.setEnabled(true);
-            }
-        }, 3000);
+            // Always recreate VirtualDisplay to force a fresh frame capture
+            createVirtualDisplay();
+            isCaptureRequested = true;
+
+            // Timeout to reset flag if capture fails
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (isCaptureRequested) {
+                    isCaptureRequested = false;
+                    if (overlayView != null)
+                        overlayView.setVisibility(View.VISIBLE); // Restore on timeout
+                    tvStatusOverlay.setText("Error");
+                    tvHeroInfo.setText("Capture timed out.");
+                    progressBar.setVisibility(View.GONE);
+                    btnAnalyze.setEnabled(true);
+                }
+            }, 3000);
+        }, 300); // 300ms delay for hidden state to take effect
     }
 
     // cleanupCapture removed as we stay persistent
@@ -377,9 +416,9 @@ public class MlbbOverlayService extends Service {
 
         geminiHelper.analyzeImage(bitmap, new GeminiHelper.Callback() {
             @Override
-            public void onSuccess(String result) {
+            public void onSuccess(String result, long duration) {
                 new Handler(Looper.getMainLooper()).post(() -> {
-                    tvStatusOverlay.setText("Ready");
+                    tvStatusOverlay.setText("Ready (" + duration + "ms)");
 
                     if (result.trim().contains("INVALID_IMAGE")) {
                         // Handle invalid image error
@@ -449,18 +488,52 @@ public class MlbbOverlayService extends Service {
             }
 
             // 3. Recommended Build
-            JSONObject build = json.optJSONObject("recommended_build");
+            // Handle both nested object (standard) and stringified JSON (user prompt quirk)
+            JSONObject build = null;
+            Object buildObj = json.opt("recommended_build");
+            if (buildObj instanceof JSONObject) {
+                build = (JSONObject) buildObj;
+                android.util.Log.d("GeminiDebug", "Build is JSONObject: " + build.toString());
+            } else if (buildObj instanceof String) {
+                try {
+                    build = new JSONObject((String) buildObj);
+                    android.util.Log.d("GeminiDebug", "Build is String: " + build.toString());
+                } catch (JSONException e) {
+                    android.util.Log.e("GeminiDebug", "Failed to parse build string: " + buildObj);
+                }
+            } else {
+                android.util.Log.e("GeminiDebug",
+                        "Build is UNKNOWN type: " + (buildObj != null ? buildObj.getClass().getName() : "null"));
+            }
+
             if (build != null) {
-                JSONArray items = build.optJSONArray("items");
-                StringBuilder itemList = new StringBuilder();
-                if (items != null) {
-                    for (int i = 0; i < items.length(); i++) {
+                StringBuilder fullBuildText = new StringBuilder();
+
+                // Counter Items
+                JSONArray counterItems = build.optJSONArray("counter_items");
+                android.util.Log.d("GeminiDebug",
+                        "Counter Items: " + (counterItems != null ? counterItems.toString() : "null"));
+
+                if (counterItems != null && counterItems.length() > 0) {
+                    fullBuildText.append("Counter: ");
+                    for (int i = 0; i < counterItems.length(); i++) {
                         if (i > 0)
-                            itemList.append(" + ");
-                        itemList.append(items.optString(i));
+                            fullBuildText.append(", ");
+                        fullBuildText.append(counterItems.optString(i));
                     }
                 }
-                tvBuildItems.setText(itemList.toString());
+
+                // Damage Items
+                String damageItem = build.optString("damage_items", "");
+                android.util.Log.d("GeminiDebug", "Damage Item: " + damageItem);
+
+                if (!damageItem.isEmpty()) {
+                    if (fullBuildText.length() > 0)
+                        fullBuildText.append("\n");
+                    fullBuildText.append("Damage: ").append(damageItem);
+                }
+
+                tvBuildItems.setText(fullBuildText.toString());
                 tvBuildReason.setText(build.optString("reasoning", ""));
             }
 
