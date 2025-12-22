@@ -57,6 +57,10 @@ public class MainActivity extends AppCompatActivity {
 
         btnTestKeys.setOnClickListener(v -> testKeys());
         btnToggleOverlay.setOnClickListener(v -> toggleOverlay());
+        if (BuildConfig.VERSION_NAME != null) {
+            TextView tvAppTitle = findViewById(R.id.tvAppTitle);
+            tvAppTitle.setText("MLBB Assist AI v" + BuildConfig.VERSION_NAME);
+        }
         btnToggleOverlay.setText(MlbbOverlayService.isServiceRunning ? "Stop Overlay" : "Start Overlay");
 
         btnToggleApi.setOnClickListener(v -> {
